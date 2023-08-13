@@ -1,1 +1,707 @@
+<html>
+   <head>
+      <style type="text/css">
+         @font-face {
+            font-family: "EurostileBold";
+            src: url(EurostileBold.woff);
+         }
 
+         @font-face {
+            font-family: "Eurostile";
+            src: url(Eurostile.woff);
+         }
+
+         @font-face {
+            font-family: "EurostileNormal";
+            src: url(EurostileNormal.woff);
+         }
+
+         .stack {
+            position: relative;
+            float: left;
+            filter: blur(.7px);
+         }
+
+         .stack > canvas {
+            position: absolute;
+            left: 0;
+            top: 0;
+         }
+
+         .readout {
+            clear: both;
+            padding-top: 8px;
+         }
+
+         .label {
+            filter: blur(.6px);
+         }
+
+         .errorLabel {
+            filter: blur(.8px);
+         }
+      </style>
+
+      <script type="text/javascript">
+      class CCanvas
+      {
+         /** @type {HTMLCanvasElement} */
+         canvas = null;
+
+         /** @type {CanvasRenderingContext2D} */
+         context = null;
+
+         width = 0;
+         height = 0;
+         realWidth = 0;
+         realHeight = 0;
+
+
+         constructor(cvs, w, h, ratio)
+         {
+            this.canvas = cvs;
+            this.width = w;
+            this.height = h;
+            this.realWidth = w * ratio;
+            this.realHeight = h * ratio;
+
+            this.canvas.width = w * ratio;
+            this.canvas.height = h * ratio;
+            this.canvas.style.width = w + "px";
+            this.canvas.style.height = h + "px";
+            this.context = this.canvas.getContext("2d");
+            this.context.scale(ratio, ratio);
+         }
+
+
+         clear()
+         {
+            this.context.clearRect(0, 0, this.realWidth, this.realHeight);
+         }
+
+
+         textHeight(text)
+         {
+            let metrics = this.context.measureText(text);
+            let fontHeight = metrics.fontBoundingBoxAscent + metrics.fontBoundingBoxDescent;
+            let actualHeight = metrics.actualBoundingBoxAscent + metrics.actualBoundingBoxDescent;
+
+            return actualHeight;
+         }
+      }
+
+
+      class CPulsingLabel extends CCanvas
+      {
+         hue;
+         saturation;
+         luminance;
+         inactiveColor = "hsl(3, 70%, 40%)";
+         inactiveTextColor = "#201515";
+         up = true;
+         active = false;
+         percent = 55;
+         centerX = 0;
+         centerY = 0;
+         line1 = "LINE1";
+         line2 = "LINE2";
+
+
+         constructor(cvs, w, h, ratio, hue, sat, lum, line1, line2)
+         {
+            super(cvs, w, h, ratio);
+            
+            this.hue = hue;
+            this.saturation = sat;
+            this.luminance = lum;
+            this.line1 = line1;
+            this.line2 = line2;
+
+            this.centerX = w / 2;
+            this.centerY = h / 2;
+            this.percent = lum;
+            this.inactiveColor = "hsl(" + hue + ", " + sat + "%, 6%)";
+         }
+
+
+         paint()
+         {
+            // 3 70% 55%
+            //#C15215, hsl(21, 80%, 42%)    LIFE FUNCTIONS CRITICAL
+            this.context.fillStyle = this.active ? "hsl(" + this.hue + ", " +
+               this.saturation + "%, " + this.luminance + "%)" : this.inactiveColor;
+            
+            this.context.fillRect(0, 0, this.realWidth, this.realHeight);
+            this.context.font = "20px EurostileBold";
+
+            this.context.fillStyle = this.active ? "hsl(" + this.hue + ", " +
+               this.saturation + "%, " + this.percent + "%)" : this.inactiveTextColor;
+            
+            this.context.textAlign = 'center';
+            this.context.textBaseline = 'middle';
+            this.context.fillText(this.line1, this.centerX, this.centerY - this.textHeight(this.line1));
+            this.context.fillText(this.line2, this.centerX, this.centerY + this.textHeight(this.line2));
+            //var upRate = 12;
+            //var downRate = .85;
+            var upRate = 30;
+            var downRate = 2.5;
+
+            if (!this.active)
+               return;
+
+            if (this.percent >= 100)
+            {
+               this.up = false;
+               this.percent -= downRate;
+            }
+            else if (this.percent <= this.luminance)
+            {
+               this.up = true;
+               this.percent += upRate;
+            }
+            else if (this.up)
+            {
+               this.percent += upRate;
+            }
+            else
+            {
+               this.percent -= downRate;
+            }
+         }
+      }
+
+
+      class CLabel extends CCanvas
+      {
+         label = "";
+         color = "#999999";
+
+
+         constructor(cvs, w, h, ratio, label, color)
+         {
+            super(cvs, w, h, ratio);
+            this.label = label;
+            this.color = color;
+         }
+
+
+         paint()
+         {
+            this.context.fillStyle = this.color;
+            this.context.fillRect(0, 0, this.realWidth, this.realHeight);
+            this.context.font = "25px EurostileBold";
+            this.context.fillStyle = "#BBBBBB";
+            this.context.fillText(this.label, 10, (this.height / 2) + 8);
+         }
+      }
+
+
+      class CGridPanel extends CCanvas
+      {
+         color = "#888888";
+         boldColor = "#DDDDDD";
+
+
+         constructor(cvs, w, h, ratio, color, boldColor)
+         {
+            super(cvs, w, h, ratio);
+            this.color = color;
+            this.boldColor = boldColor;
+         }
+
+
+         paint()
+         {
+            this.clear();
+            this.context.strokeStyle = this.boldColor;
+            this.context.lineWidth = .7;
+            this.context.clearRect(0, 0, this.width, this.height);
+
+            // top border
+            this.context.beginPath();
+            this.context.moveTo(0, 1);
+            this.context.lineTo(this.width, 1);
+            this.context.stroke();
+
+            // bottom border
+            this.context.beginPath();
+            this.context.moveTo(0, this.height - 1);
+            this.context.lineTo(this.width, this.height - 1);
+            this.context.stroke();
+
+            this.context.lineWidth = .5;
+            this.context.beginPath();
+            this.context.moveTo(this.width - 1, 0);
+            this.context.lineTo(this.width - 1, this.height - 1);
+            this.context.stroke();
+
+            this.context.strokeStyle = this.color;
+
+            // center line
+            this.context.beginPath();
+            this.context.moveTo(0, this.height / 2);
+            this.context.lineTo(this.width, this.height / 2);
+            this.context.stroke();
+
+            let centerOffset = 10;
+            this.context.beginPath();
+            this.context.moveTo(0, this.height / 2 - centerOffset);
+            this.context.lineTo(this.width, this.height / 2 - centerOffset);
+            this.context.stroke();
+
+            this.context.beginPath();
+            this.context.moveTo(0, this.height / 2 + centerOffset);
+            this.context.lineTo(this.width, this.height / 2 + centerOffset);
+            this.context.stroke();
+
+            // 51 columns
+            var colIdx = 0;
+
+            for (let i = 0; i < this.width; i += (this.width / 51))
+            {
+               if (colIdx == 6)
+               {
+                  this.context.strokeStyle = this.boldColor;
+                  this.context.lineWidth = .7;
+               }
+               else if (colIdx > 6  &&  (colIdx -1) % 5 == 0)
+               {
+                  this.context.strokeStyle = this.boldColor;
+                  this.context.lineWidth = .7;
+               }
+               else
+               {
+                  this.context.strokeStyle = this.color;
+                  this.context.lineWidth = .5;
+               }
+
+               colIdx++;
+
+               this.context.beginPath();
+               this.context.moveTo(i, 0);
+               this.context.lineTo(i, this.height - 1);
+               this.context.stroke();
+            }
+         }
+      }
+
+
+      class CTrace extends CCanvas
+      {
+         fps = 60;   
+
+         x = 0;
+         y = this.realHeight / 2;
+         fadeSpeed = 2;
+         fadeCounter = 0;
+         sweepMilli = 0;
+         jitterTop = 0;
+         jitterBottom = 0;
+         lag = 0;
+
+         pixels;
+         data;
+         pixelMovesPerFrame = 1;
+
+
+         constructor(cvs, w, h, ratio, sweepTime)
+         {
+            super(cvs, w, h, ratio);
+
+            this.sweepMilli = sweepTime;
+            this.pixelMovesPerFrame = Math.floor((1000 / this.fps) / (sweepTime / this.realWidth));
+
+            this.jitterTop = (this.realHeight / 2) - 1;
+            this.jitterBottom = (this.realHeight / 2) + 1;
+
+            this.pixels = this.context.getImageData(0, 0, this.realWidth, this.realHeight);
+            this.data = this.pixels.data;
+            this.buffer = this.pixels.data.buffer;
+         }
+
+
+         paint(elapsed)
+         {
+            //let pixelMovesPerFrame = 1000 / this.fps / this.sweepTime / this.realWidth;
+
+            for (let d = 0; d < this.pixelMovesPerFrame; d++)
+            {
+               this.sweep();
+               this.x = (this.x >= this.realWidth ? 0 : this.x + 1);
+
+               if (this.fadeCounter >= this.fadeSpeed)
+               {
+                  this.fadeCounter = 0;
+               }
+               else
+                  this.fadeCounter++;
+            }
+
+            //this.jitter();
+            this.context.putImageData(this.pixels, 0, 0);
+         }
+
+
+         sweep()
+         {
+            for (var xw = 0; xw < this.realWidth; xw++)
+            {
+               for (var yh = 0; yh < this.realHeight; yh++)
+               {
+                  var i = (yh * this.realWidth * 4) + (xw * 4);
+
+                  if (this.fadeCounter == 0)
+                  {
+                     this.data[i] = Math.max(0, this.data[i] - 1);
+                     this.data[i + 1] = Math.max(0, this.data[i + 1] - 1);
+                     this.data[i + 2] = Math.max(0, this.data[i + 2] - 1);
+                     this.data[i + 3] = 255;
+                  }
+               }
+            }
+
+            this.paintDot(this.height / 2);
+         }
+
+
+         paintDot(rad)
+         {
+            rad = radius.value;
+            let rLevel = 255;
+            let gLevel = 230;
+            let bLevel = 230;
+            let int = intensity.value / 100;
+
+            //let powers = [];
+
+            //for (var p = 0; p < rad; p++)
+            //{
+            //   powers.push(Math.pow(int, p));
+            //}
+
+            for (var xw = 0; xw < this.realWidth; xw++)
+            {
+               for (var yh = 0; yh < this.realHeight; yh++)
+               {
+                  var diffx = xw - this.x;
+
+                  if (diffx < 0)
+                     continue;
+
+                  diffx = Math.abs(xw - this.x);
+                  var diffy = Math.abs(yh - this.y);
+                  var distance = Math.sqrt((diffx * diffx) + (diffy * diffy));
+
+                  if (distance <= rad)
+                  {
+                     var i = (yh * this.realWidth * 4) + (xw * 4);
+                     //var adjust = powers[Math.floor(distance)];
+                     var adjust = Math.pow(int, distance);
+
+                     this.data[i] = Math.floor(rLevel * adjust);
+                     this.data[i + 1] = Math.floor(gLevel * adjust);
+                     this.data[i + 2] = Math.floor(bLevel * adjust);
+                     this.data[i + 3] = 255;
+                  }
+               }
+            }
+         }
+
+
+         jitter()
+         {
+            var upDown = Math.floor(Math.random() * 10);
+
+            if (upDown >= 8)
+            {
+               upDown = 1;
+            }
+            else if (upDown < 2)
+            {
+               upDown = -1;
+            }
+            else
+            {
+               upDown = 0;
+            }
+
+            if (this.y + upDown < this.jitterTop || this.y + upDown > this.jitterBottom)
+            {
+               return;
+            }
+
+            this.y += upDown;
+         }
+      }
+
+
+      class Pulse
+      {
+         fadeCounter = 0;
+         pulseUpTime = 10;
+         pulseDownTime = 12;
+         pulseHeight = 20;
+         startY;
+         currentY;
+         done = false;
+
+         constructor(y)
+         {
+            this.startY = y;
+            this.currentY = y;
+         }
+
+         nextY()
+         {
+            if (this.currentY < this.pulseHeight)
+            {
+               this.currentY += 1;
+            }
+            else if (this.currentY > this.startY)
+            {
+               this.currentY -= 1;
+            }
+            else
+            {
+               this.done = true;
+            }
+         }
+      }
+
+
+      let lastPaint = performance.now();
+      let traceCanvas1;
+      let traceCanvas2;
+      let traceCanvas3;
+
+      let panelCanvas1;
+      let panelCanvas2;
+      let panelCanvas3;
+
+      let labelCanvas1;
+      let labelCanvas2;
+      let labelCanvas3;
+
+      let labelMalfunction;
+      let labelCritical;
+      let labelTerminated;
+
+      let lblElapsed;
+      let colorPicker;
+      let intensity;
+      let radius;
+      let errorLevel = 0;
+
+      let e = 0;
+      let red = "hsl(3, 90%, 38%)";
+      let darkRed = "hsl(3, 90%, 20%)";
+
+
+      function paintLoop(timestamp)
+      {
+         var elapsed = timestamp - lastPaint;
+         lastPaint = timestamp;
+
+         if (e == 5)
+         {
+            //lblElapsed.innerText = elapsed;
+            e = 0;
+         }
+         else
+         {
+            e++;
+         }
+
+         //labelCanvas1.paint();
+         //labelCanvas2.paint();
+         //labelCanvas3.paint();
+         labelMalfunction.paint();
+         labelCritical.paint();
+         labelTerminated.paint();
+
+         //panelCanvas1.paint();
+         //panelCanvas2.paint();
+         //panelCanvas3.paint();
+
+         traceCanvas1.paint(elapsed);
+         traceCanvas2.paint(elapsed);
+         traceCanvas3.paint(elapsed);
+
+         requestAnimationFrame(paintLoop);  
+      }
+
+
+      window.onload = function ()
+      {
+         let cvsTrace1 = document.getElementById("cvsTrace1");
+         let cvsTrace2 = document.getElementById("cvsTrace2");
+         let cvsTrace3 = document.getElementById("cvsTrace3");
+
+         let cvsPanel1 = document.getElementById("cvsPanel1");
+         let cvsPanel2 = document.getElementById("cvsPanel2");
+         let cvsPanel3 = document.getElementById("cvsPanel3");
+
+         let cvsLabel1 = document.getElementById("cvsLabel1");
+         let cvsLabel2 = document.getElementById("cvsLabel2");
+         let cvsLabel3 = document.getElementById("cvsLabel3");
+
+         let cvsLabelMalfunction = document.getElementById("cvsLabelMalfunction");
+         let cvsLabelCritical = document.getElementById("cvsLabelCritical");
+         let cvsLabelTerminated = document.getElementById("cvsLabelTerminated");
+
+         let ratio = window.devicePixelRatio;
+         let readoutWidth = 686;
+         let readoutHeight = 56;
+
+         traceCanvas1 = new CTrace(cvsTrace1, readoutWidth, readoutHeight, ratio, 9900);
+         traceCanvas2 = new CTrace(cvsTrace2, readoutWidth, readoutHeight, ratio, 3500);
+         traceCanvas3 = new CTrace(cvsTrace3, readoutWidth, readoutHeight, ratio, 5000);
+
+         panelCanvas1 = new CGridPanel(cvsPanel1, readoutWidth, readoutHeight, ratio, "#2C768A", "#6CB6CA");
+         panelCanvas2 = new CGridPanel(cvsPanel2, readoutWidth, readoutHeight, ratio, "#075900", "#0C7936");
+         panelCanvas3 = new CGridPanel(cvsPanel3, readoutWidth, readoutHeight, ratio, "#18604A", "#58A07A");
+
+         labelCanvas1 = new CLabel(cvsLabel1, 191, readoutHeight, ratio, "CARDIO", "#3C869A");
+         labelCanvas2 = new CLabel(cvsLabel2, 191, readoutHeight, ratio, "METABOLIC", "#2C5926");
+         labelCanvas3 = new CLabel(cvsLabel3, 191, readoutHeight, ratio, "CENTRAL", "#48907A");
+
+         //labelMalfunction = new CPulsingLabel(cvsLabelMalfunction, 191, 80, ratio, 3, 70, 55, "COMPUTER", "MALFUNCTION");
+         labelMalfunction = new CPulsingLabel(cvsLabelMalfunction, 191, 75, ratio, 4, 94, 31, "COMPUTER", "MALFUNCTION");
+         labelCritical = new CPulsingLabel(cvsLabelCritical, 191, 75, ratio, 21, 80, 42, "LIFE FUNCTIONS", "CRITICAL");
+         labelTerminated = new CPulsingLabel(cvsLabelTerminated, 191, 75, ratio, 3, 91, 35, "LIFE FUNCTIONS", "TERMINATED");
+
+         traceCanvas1.clear();
+         traceCanvas2.clear();
+         traceCanvas3.clear();
+
+         labelCanvas1.paint();
+         labelCanvas2.paint();
+         labelCanvas3.paint();
+         labelMalfunction.paint();
+
+         panelCanvas1.paint();
+         panelCanvas2.paint();
+         panelCanvas3.paint();
+
+         lblElapsed = document.getElementById("lblElapsed");
+         intensity = document.getElementById("intensity");
+         radius = document.getElementById("radius");
+         colorPicker = document.getElementById("picker");
+         colorPicker.addEventListener("input", onPickerInput, false);
+
+         requestAnimationFrame(paintLoop);
+      }
+
+
+      function onPickerInput(event)
+      {
+         labelCanvas1.color = event.target.value;
+         labelCanvas1.paint();
+      }
+
+
+      function malfunction(readout)
+      {
+         errorLevel++;
+         labelMalfunction.active = true;
+
+         if (errorLevel > 0)
+            labelMalfunction.active = true;
+
+         if (errorLevel > 1)
+            labelCritical.active = true;
+
+         if (errorLevel > 2)
+            labelTerminated.active = true;
+
+         if (readout == 1)
+         {
+            labelCanvas1.color = red;
+            labelCanvas1.paint();
+            panelCanvas1.color = darkRed;
+            panelCanvas1.boldColor = red;
+            panelCanvas1.paint();
+         }
+         else if (readout == 2)
+         {
+            labelCanvas2.color = red;
+            labelCanvas2.paint();
+            panelCanvas2.color = darkRed;
+            panelCanvas2.boldColor = red;
+            panelCanvas2.paint();
+         }
+         else
+         {
+            labelCanvas3.color = red;
+            labelCanvas3.paint();
+            panelCanvas3.color = darkRed;
+            panelCanvas3.boldColor = red;
+            panelCanvas3.paint();
+         }
+      }
+      </script>
+   </head>
+
+   <!-- cardio    60,132,153 -->
+   <!-- metabolic 45,92,40 -->
+   <!-- central   72,144,122 -->
+   <!-- pulmonary 86,124,168 -->
+   <!-- systems   81,157,195 -->
+   <!-- locomotor 66,65,33      80,74,44     64,62,33 -->
+
+   <!-- body bgcolor="black" style="filter: blur(.6px);" -->
+   <body bgcolor="black">
+      <div style="clear: both">
+         <div class="readout" onclick="malfunction(1);">
+            <canvas id="cvsLabel1" class="label" height="56" width="191"
+               style="float: left; position: relative"></canvas>
+
+            <div class="stack">
+               <canvas id="cvsTrace1" height="56" width="686"></canvas>
+               <canvas id="cvsPanel1" height="56" width="686"></canvas>
+            </div>
+         </div>
+
+         <div class="readout" onclick="malfunction(2);">
+            <canvas id="cvsLabel2" class="label" height="56" width="191"
+               style="float: left; position: relative; clear: both"></canvas>
+
+            <div class="stack">
+               <canvas id="cvsTrace2" height="56" width="686"></canvas>
+               <canvas id="cvsPanel2" height="56" width="686"></canvas>
+            </div>
+         </div>
+
+         <div class="readout" onclick="malfunction(3);">
+            <canvas id="cvsLabel3" class="label" height="56" width="191"
+               style="float: left; position: relative; clear: both"></canvas>
+
+            <div class="stack">
+               <canvas id="cvsTrace3" height="56" width="686"></canvas>
+               <canvas id="cvsPanel3" height="56" width="686"></canvas>
+            </div>
+         </div>
+      </div>
+
+      <canvas id="cvsLabelMalfunction" class="errorLabel" height="75" width="686"
+         style="float: left; position: relative; clear: both; padding-top: 8px; padding-right: 8px"></canvas>
+
+      <canvas id="cvsLabelCritical" class="errorLabel" height="75" width="686"
+         style="float: left; position: relative; padding-top: 8px; padding-right: 8px"></canvas>
+
+      <canvas id="cvsLabelTerminated" class="errorLabel" height="75" width="686"
+         style="float: left; position: relative; padding-top: 8px;"></canvas>
+
+      <br />
+      <br />
+      <br />
+      <!-- development scraps -->
+      <div style="visibility: hidden">
+         <p id="lblElapsed" style="color: white; font-family: EurostileBold; clear: both">&nbsp;</p>
+         <p id="rgb" style="color: white; font-family: Eurostile; font-size: 25px">CARDIO</p>
+         <input id="picker" type="color" /><label for="picker">Color</label>
+         <input id="intensity" type="range" inputmode="numeric" max="99" min="1" value="90" style="width: 200px" />
+         <input id="radius" type="range" inputmode="numeric" max="60" min="1" value="120" style="width: 400px" />
+      </div>
+   </body>
+</html>
